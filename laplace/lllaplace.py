@@ -2,12 +2,12 @@ from copy import deepcopy
 import torch
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 
-from laplace.baselaplace import ParametricLaplace, FullLaplace, KronLaplace, DiagLaplace
+from laplace.baselaplace import ParametricLaplace, FullLaplace, KronLaplace, DiagLaplace, HetLaplace
 from laplace.utils import FeatureExtractor, Kron
 from laplace.curvature import BackPackGGN
 
 
-__all__ = ['LLLaplace', 'FullLLLaplace', 'KronLLLaplace', 'DiagLLLaplace']
+__all__ = ['LLLaplace', 'FullLLLaplace', 'KronLLLaplace', 'DiagLLLaplace', 'HetLLLaplace']
 
 
 class LLLaplace(ParametricLaplace):
@@ -159,15 +159,6 @@ class FullLLLaplace(LLLaplace, FullLaplace):
     # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
     _key = ('last_layer', 'full')
 
-class HetLLLaplace(LLLaplace, HetLaplace):
-    """Last-layer Laplace approximation with full, i.e., dense, log likelihood Hessian approximation
-    and hence posterior precision. Based on the chosen `backend` parameter, the full
-    approximation can be, for example, a generalized Gauss-Newton matrix.
-    Mathematically, we have \\(P \\in \\mathbb{R}^{P \\times P}\\).
-    See `FullLaplace`, `LLLaplace`, and `BaseLaplace` for the full interface.
-    """
-    # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
-    _key = ('last_layer', 'full')
 
 
 class KronLLLaplace(LLLaplace, KronLaplace):
@@ -204,3 +195,17 @@ class DiagLLLaplace(LLLaplace, DiagLaplace):
     """
     # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
     _key = ('last_layer', 'diag')
+
+
+class HetLLLaplace(LLLaplace, HetLaplace):
+    """Based off of FullLLLaplace
+    
+
+    Last-layer Laplace approximation with full, i.e., dense, log likelihood Hessian approximation
+    and hence posterior precision. Based on the chosen `backend` parameter, the full
+    approximation can be, for example, a generalized Gauss-Newton matrix.
+    Mathematically, we have \\(P \\in \\mathbb{R}^{P \\times P}\\).
+    See `FullLaplace`, `LLLaplace`, and `BaseLaplace` for the full interface.
+    """
+    # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
+    _key = ('last_layer', 'het')
