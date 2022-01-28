@@ -16,6 +16,8 @@ from laplace.marglik_training import marglik_training
 __all__ = ['Laplace',  # direct access to all Laplace classes via unified interface
            'BaseLaplace', 'ParametricLaplace',  # base-class and its (first-level) subclasses
            'FullLaplace', 'KronLaplace', 'DiagLaplace', 'LowRankLaplace',  # all-weights
+           'HetLaplace', # heteroscedastic observations
+           'HetLLLaplace', # last-layer heteroscedastic observations
            'LLLaplace',  # base-class last-layer
            'FullLLLaplace', 'KronLLLaplace', 'DiagLLLaplace',  # last-layer
            'SubnetLaplace',  # subnetwork

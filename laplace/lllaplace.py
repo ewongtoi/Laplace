@@ -159,6 +159,16 @@ class FullLLLaplace(LLLaplace, FullLaplace):
     # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
     _key = ('last_layer', 'full')
 
+class HetLLLaplace(LLLaplace, HetLaplace):
+    """Last-layer Laplace approximation with full, i.e., dense, log likelihood Hessian approximation
+    and hence posterior precision. Based on the chosen `backend` parameter, the full
+    approximation can be, for example, a generalized Gauss-Newton matrix.
+    Mathematically, we have \\(P \\in \\mathbb{R}^{P \\times P}\\).
+    See `FullLaplace`, `LLLaplace`, and `BaseLaplace` for the full interface.
+    """
+    # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
+    _key = ('last_layer', 'full')
+
 
 class KronLLLaplace(LLLaplace, KronLaplace):
     """Last-layer Laplace approximation with Kronecker factored log likelihood Hessian approximation

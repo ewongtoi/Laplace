@@ -9,7 +9,8 @@ from laplace.curvature import BackPackGGN, AsdlHessian
 
 
 __all__ = ['BaseLaplace', 'ParametricLaplace',
-           'FullLaplace', 'KronLaplace', 'DiagLaplace', 'LowRankLaplace']
+           'FullLaplace', 'KronLaplace', 'DiagLaplace', 'LowRankLaplace', 
+           'HetLaplace']
 
 
 class BaseLaplace:
@@ -665,6 +666,88 @@ class ParametricLaplace(BaseLaplace):
 
 
 class FullLaplace(ParametricLaplace):
+    """Laplace approximation with full, i.e., dense, log likelihood Hessian approximation
+    and hence posterior precision. Based on the chosen `backend` parameter, the full
+    approximation can be, for example, a generalized Gauss-Newton matrix.
+    Mathematically, we have \\(P \\in \\mathbb{R}^{P \\times P}\\).
+    See `BaseLaplace` for the full interface.
+    """
+    # key to map to correct subclass of BaseLaplace, (subset of weights, Hessian structure)
+    _key = ('all', 'full')
+
+    def __init__(self, model, likelihood, sigma_noise=1., prior_precision=1.,
+                 prior_mean=0., temperature=1., backend=BackPackGGN, backend_kwargs=None):
+        super().__init__(model, likelihood, sigma_noise, prior_precision,
+                         prior_mean, temperature, backend, backend_kwargs)
+        self._posterior_scale = None
+
+    def _init_H(self):
+        self.H = torch.zeros(self.n_params, self.n_params, device=self._device)
+
+    def _curv_closure(self, X, y, N):
+        return self.backend.full(X, y, N=N)
+
+    def fit(self, train_loader, override=True):
+        self._posterior_scale = None
+        return super().fit(train_loader, override=override)
+
+    def _compute_scale(self):
+        self._posterior_scale = invsqrt_precision(self.posterior_precision)
+
+    @property
+    def posterior_scale(self):
+        """Posterior scale (square root of the covariance), i.e.,
+        \\(P^{-\\frac{1}{2}}\\).
+
+        Returns
+        -------
+        scale : torch.tensor
+            `(parameters, parameters)`
+        """
+        if self._posterior_scale is None:
+            self._compute_scale()
+        return self._posterior_scale
+
+    @property
+    def posterior_covariance(self):
+        """Posterior covariance, i.e., \\(P^{-1}\\).
+
+        Returns
+        -------
+        covariance : torch.tensor
+            `(parameters, parameters)`
+        """
+        scale = self.posterior_scale
+        return scale @ scale.T
+
+    @property
+    def posterior_precision(self):
+        """Posterior precision \\(P\\).
+
+        Returns
+        -------
+        precision : torch.tensor
+            `(parameters, parameters)`
+        """
+        self._check_H_init()
+        return self._H_factor * self.H + torch.diag(self.prior_precision_diag)
+
+    @property
+    def log_det_posterior_precision(self):
+        return self.posterior_precision.logdet()
+
+    def square_norm(self, value):
+        delta = value - self.mean
+        return delta @ self.posterior_precision @ delta
+
+    def functional_variance(self, Js):
+        return torch.einsum('ncp,pq,nkq->nck', Js, self.posterior_covariance, Js)
+
+    def sample(self, n_samples=100):
+        dist = MultivariateNormal(loc=self.mean, scale_tril=self.posterior_scale)
+        return dist.sample((n_samples,))
+
+class HetLaplace(ParametricLaplace):
     """Laplace approximation with full, i.e., dense, log likelihood Hessian approximation
     and hence posterior precision. Based on the chosen `backend` parameter, the full
     approximation can be, for example, a generalized Gauss-Newton matrix.
