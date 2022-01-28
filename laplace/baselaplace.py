@@ -19,7 +19,7 @@ class BaseLaplace:
     Parameters
     ----------
     model : torch.nn.Module
-    likelihood : {'classification', 'regression'}
+    likelihood : {'classification', 'regression', 'het_regression'}
         determines the log likelihood Hessian approximation
     sigma_noise : torch.Tensor or float, default=1
         observation noise for the regression setting; must be 1 for classification
@@ -39,7 +39,7 @@ class BaseLaplace:
     """
     def __init__(self, model, likelihood, sigma_noise=1., prior_precision=1.,
                  prior_mean=0., temperature=1., backend=BackPackGGN, backend_kwargs=None):
-        if likelihood not in ['classification', 'regression']:
+        if likelihood not in ['classification', 'regression', 'het_regression']:
             raise ValueError(f'Invalid likelihood type {likelihood}')
 
         self.model = model
@@ -487,7 +487,7 @@ class ParametricLaplace(BaseLaplace):
 
         # update sigma_noise (useful when iterating on marglik)
         if sigma_noise is not None:
-            if self.likelihood != 'regression':
+            if self.likelihood != 'regression' and self.likelihood != 'het_regression':
                 raise ValueError('Can only change sigma_noise for regression.')
             self.sigma_noise = sigma_noise
 

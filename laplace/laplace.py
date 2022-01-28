@@ -9,7 +9,7 @@ def Laplace(model, likelihood, subset_of_weights='last_layer', hessian_structure
     Parameters
     ----------
     model : torch.nn.Module
-    likelihood : {'classification', 'regression'}
+    likelihood : {'classification', 'regression', 'het_regression'}
     subset_of_weights : {'last_layer', 'subnetwork', 'all'}, default='last_layer'
         subset of weights to consider for inference
     hessian_structure : {'diag', 'kron', 'full', 'lowrank', 'het'}, default='kron'

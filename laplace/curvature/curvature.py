@@ -13,7 +13,7 @@ class CurvatureInterface:
     ----------
     model : torch.nn.Module or `laplace.utils.feature_extractor.FeatureExtractor`
         torch model (neural network)
-    likelihood : {'classification', 'regression'}
+    likelihood : {'classification', 'regression', 'het_regression'}
     last_layer : bool, default=False
         only consider curvature of last layer
     subnetwork_indices : torch.Tensor, default=None
@@ -27,19 +27,20 @@ class CurvatureInterface:
         conversion factor between torch losses and base likelihoods
         For example, \\(\\frac{1}{2}\\) to get to \\(\\mathcal{N}(f, 1)\\) from MSELoss.
     """
-    def __init__(self, model, likelihood, last_layer=False, subnetwork_indices=None, het=False):
-        assert likelihood in ['regression', 'classification']
+    def __init__(self, model, likelihood, last_layer=False, subnetwork_indices=None):
+        assert likelihood in ['regression', 'classification', 'het_regression']
         self.likelihood = likelihood
         self.model = model
         self.last_layer = last_layer
         self.subnetwork_indices = subnetwork_indices
         if likelihood == 'regression':
-            if het:
-                self.lossfunc = MSELoss(reduction='sum')
-                self.factor = 0.5
-            else:
-                self.lossfunc = MSELoss(reduction='sum')
-                self.factor = 0.5
+
+            self.lossfunc = MSELoss(reduction='sum')
+            self.factor = 0.5
+
+        elif likelihood == 'het_regression':
+            self.lossfunc = MSELoss(reduction='sum')
+            self.factor = 0.5            
         else:
             self.lossfunc = CrossEntropyLoss(reduction='sum')
             self.factor = 1.
@@ -181,7 +182,7 @@ class GGNInterface(CurvatureInterface):
     ----------
     model : torch.nn.Module or `laplace.utils.feature_extractor.FeatureExtractor`
         torch model (neural network)
-    likelihood : {'classification', 'regression'}
+    likelihood : {'classification', 'regression', 'het_regression'}
     last_layer : bool, default=False
         only consider curvature of last layer
     subnetwork_indices : torch.Tensor, default=None
@@ -214,6 +215,8 @@ class GGNInterface(CurvatureInterface):
         """
         loss = self.factor * self.lossfunc(f, y)
         if self.likelihood == 'regression':
+            H_ggn = torch.einsum('mkp,mkq->pq', Js, Js)
+        elif self.likelihood == 'het_regression':
             H_ggn = torch.einsum('mkp,mkq->pq', Js, Js)
         else:
             # second derivative of log lik is diag(p) - pp^T
@@ -260,7 +263,7 @@ class EFInterface(CurvatureInterface):
     ----------
     model : torch.nn.Module or `laplace.utils.feature_extractor.FeatureExtractor`
         torch model (neural network)
-    likelihood : {'classification', 'regression'}
+    likelihood : {'classification', 'regression', 'het_regression'}
     last_layer : bool, default=False
         only consider curvature of last layer
     subnetwork_indices : torch.Tensor, default=None
