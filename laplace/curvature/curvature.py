@@ -27,15 +27,19 @@ class CurvatureInterface:
         conversion factor between torch losses and base likelihoods
         For example, \\(\\frac{1}{2}\\) to get to \\(\\mathcal{N}(f, 1)\\) from MSELoss.
     """
-    def __init__(self, model, likelihood, last_layer=False, subnetwork_indices=None):
+    def __init__(self, model, likelihood, last_layer=False, subnetwork_indices=None, het=False):
         assert likelihood in ['regression', 'classification']
         self.likelihood = likelihood
         self.model = model
         self.last_layer = last_layer
         self.subnetwork_indices = subnetwork_indices
         if likelihood == 'regression':
-            self.lossfunc = MSELoss(reduction='sum')
-            self.factor = 0.5
+            if het:
+                self.lossfunc = MSELoss(reduction='sum')
+                self.factor = 0.5
+            else:
+                self.lossfunc = MSELoss(reduction='sum')
+                self.factor = 0.5
         else:
             self.lossfunc = CrossEntropyLoss(reduction='sum')
             self.factor = 1.
