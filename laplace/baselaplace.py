@@ -73,7 +73,7 @@ class BaseLaplace:
     def _curv_closure(self, X, y, N, sigs=None):
         raise NotImplementedError
 
-    def fit(self, train_loader):
+    def fit(self, train_loader, sigs=None):
         raise NotImplementedError
 
     def log_marginal_likelihood(self, prior_precision=None, sigma_noise=None):
@@ -92,6 +92,11 @@ class BaseLaplace:
         """
         factor = - self._H_factor
         if self.likelihood == 'regression':
+            # loss used is just MSE, need to add normalizer for gaussian likelihood
+            c = self.n_data * self.n_outputs * torch.log(self.sigma_noise * sqrt(2 * pi))
+            return factor * self.loss - c
+        elif self.likelihood == 'het_regression':
+            # place holder for later when implement het_nll
             # loss used is just MSE, need to add normalizer for gaussian likelihood
             c = self.n_data * self.n_outputs * torch.log(self.sigma_noise * sqrt(2 * pi))
             return factor * self.loss - c
@@ -288,13 +293,15 @@ class BaseLaplace:
             if sigma_noise.ndim == 0:
                 self._sigma_noise = sigma_noise.to(self._device)
             elif sigma_noise.ndim == 1:
-                if len(sigma_noise) > 1:
-                    raise ValueError('Only homoscedastic output noise supported.')
+                # allow het noise
+                #if len(sigma_noise) > 1:
+                    
+                    #raise ValueError('Only homoscedastic output noise supported.')
                 self._sigma_noise = sigma_noise[0].to(self._device)
-            else:
-                raise ValueError('Sigma noise needs to be scalar or 1-dimensional.')
-        else:
-            raise ValueError('Invalid type: sigma noise needs to be torch.Tensor or scalar.')
+            #else:
+            #    raise ValueError('Sigma noise needs to be scalar or 1-dimensional.')
+        #else:
+        #    raise ValueError('Invalid type: sigma noise needs to be torch.Tensor or scalar.')
 
     @property
     def _H_factor(self):
@@ -687,7 +694,7 @@ class FullLaplace(ParametricLaplace):
     def _curv_closure(self, X, y, N, sigs=None):
         return self.backend.full(X, y, sigs, N=N)
 
-    def fit(self, train_loader, override=True):
+    def fit(self, train_loader, override=True, sigs=None):
         self._posterior_scale = None
         return super().fit(train_loader, override=override)
 
@@ -774,7 +781,7 @@ class KronLaplace(ParametricLaplace):
     def _init_H(self):
         self.H = Kron.init_from_model(self.model, self._device)
 
-    def _curv_closure(self, X, y, N):
+    def _curv_closure(self, X, y, N, sigs=None):
         return self.backend.kron(X, y, N=N)
 
     @staticmethod
@@ -784,7 +791,7 @@ class KronLaplace(ParametricLaplace):
                 F[1] *= factor
         return kron
 
-    def fit(self, train_loader, override=True):
+    def fit(self, train_loader, override=True, sigs=None):
         if override:
             self.H_facs = None
 
@@ -878,7 +885,7 @@ class LowRankLaplace(ParametricLaplace):
         (U, l), _ = self.posterior_precision
         return torch.inverse(torch.diag(1 / l) + U.T @ self.V)
 
-    def fit(self, train_loader, override=True):
+    def fit(self, train_loader, override=True, sigs=None):
         # override fit since output of eighessian not additive across batch
         if not override:
             # LowRankLA cannot be updated since eigenvalue representation not additive
@@ -957,7 +964,7 @@ class DiagLaplace(ParametricLaplace):
     def _init_H(self):
         self.H = torch.zeros(self.n_params, device=self._device)
 
-    def _curv_closure(self, X, y, N):
+    def _curv_closure(self, X, y, N, sigs=None):
         return self.backend.diag(X, y, N=N)
 
     @property
@@ -1041,10 +1048,10 @@ class HetLaplace(ParametricLaplace):
     def _init_H(self):
         self.H = torch.zeros(self.n_params, self.n_params, device=self._device)
 
-    def _curv_closure(self, X, y, N):
+    def _curv_closure(self, X, y, N, sigs=None):
         return self.backend.full(X, y, N=N)
 
-    def fit(self, train_loader, override=True):
+    def fit(self, train_loader, override=True, sigs=None):
         self._posterior_scale = None
         return super().fit(train_loader, override=override)
 
