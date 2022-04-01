@@ -70,7 +70,7 @@ class BaseLaplace:
                                               **self._backend_kwargs)
         return self._backend
 
-    def _curv_closure(self, X, y, N):
+    def _curv_closure(self, X, y, N, sigs=None):
         raise NotImplementedError
 
     def fit(self, train_loader):
@@ -342,7 +342,7 @@ class ParametricLaplace(BaseLaplace):
         if self.H is None:
             raise AttributeError('Laplace not fitted. Run fit() first.')
 
-    def fit(self, train_loader, override=True):
+    def fit(self, train_loader, override=True, sigs=None):
         """Fit the local Laplace approximation at the parameters of the model.
 
         Parameters
@@ -375,7 +375,7 @@ class ParametricLaplace(BaseLaplace):
         for X, y in train_loader:
             self.model.zero_grad()
             X, y = X.to(self._device), y.to(self._device)
-            loss_batch, H_batch = self._curv_closure(X, y, N)
+            loss_batch, H_batch = self._curv_closure(X, y, N, sigs)
             self.loss += loss_batch
             self.H += H_batch
 
@@ -684,8 +684,8 @@ class FullLaplace(ParametricLaplace):
     def _init_H(self):
         self.H = torch.zeros(self.n_params, self.n_params, device=self._device)
 
-    def _curv_closure(self, X, y, N):
-        return self.backend.full(X, y, N=N)
+    def _curv_closure(self, X, y, N, sigs=None):
+        return self.backend.full(X, y, sigs, N=N)
 
     def fit(self, train_loader, override=True):
         self._posterior_scale = None

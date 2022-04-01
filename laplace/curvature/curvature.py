@@ -39,6 +39,7 @@ class CurvatureInterface:
             self.factor = 0.5
 
         elif likelihood == 'het_regression':
+            # needs to be updated for hetero reweight
             self.lossfunc = MSELoss(reduction='sum')
             self.factor = 0.5            
         else:
@@ -111,7 +112,7 @@ class CurvatureInterface:
         """
         raise NotImplementedError
 
-    def full(self, x, y, **kwargs):
+    def full(self, x, y, sigs=None, **kwargs):
         """Compute a dense curvature (approximation) in the form of a \\(P \\times P\\) matrix
         \\(H\\) with respect to parameters \\(\\theta \\in \\mathbb{R}^P\\).
 
@@ -195,7 +196,7 @@ class GGNInterface(CurvatureInterface):
         self.stochastic = stochastic
         super().__init__(model, likelihood, last_layer, subnetwork_indices)
 
-    def _get_full_ggn(self, Js, f, y):
+    def _get_full_ggn(self, Js, f, y, sigs=None):
         """Compute full GGN from Jacobians.
 
         Parameters
@@ -217,7 +218,21 @@ class GGNInterface(CurvatureInterface):
         if self.likelihood == 'regression':
             H_ggn = torch.einsum('mkp,mkq->pq', Js, Js)
         elif self.likelihood == 'het_regression':
-            H_ggn = torch.einsum('mkp,mkq->pq', Js, Js)
+            # rescale
+            taus = 1 / sigs
+            Js2 = torch.einsum('ijk,ijp->ijk', Js, taus[:, :, None])
+            H_ggn = torch.einsum('mkp,mkq->pq', Js2, Js)
+        elif self.likelihood == 'het_classification':
+            # second derivative of log lik is diag(p) - pp^T
+            ps = torch.softmax(f, dim=-1)
+            H_lik = torch.diag_embed(ps) - torch.einsum('mk,mc->mck', ps, ps)
+
+            taus = 1 / sigs
+
+            # reweight according to sigmas
+            H_lik = torch.matmul(H_lik, taus[:, :, None])
+            H_ggn = torch.einsum('mcp,mck,mkq->pq', Js, H_lik, Js)
+
         else:
             # second derivative of log lik is diag(p) - pp^T
             ps = torch.softmax(f, dim=-1)
@@ -225,7 +240,7 @@ class GGNInterface(CurvatureInterface):
             H_ggn = torch.einsum('mcp,mck,mkq->pq', Js, H_lik, Js)
         return loss.detach(), H_ggn
 
-    def full(self, x, y, **kwargs):
+    def full(self, x, y, sigs=None, **kwargs):
         """Compute the full GGN \\(P \\times P\\) matrix as Hessian approximation
         \\(H_{ggn}\\) with respect to parameters \\(\\theta \\in \\mathbb{R}^P\\).
         For last-layer, reduced to \\(\\theta_{last}\\)
