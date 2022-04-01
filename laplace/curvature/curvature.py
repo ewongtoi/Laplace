@@ -1,6 +1,20 @@
 import torch
 from torch.nn import MSELoss, CrossEntropyLoss
+from torch.distributions.normal import Normal
 
+
+def het_nll(y_pred, y, sigmas):
+    '''
+    returns (something \propto) the negative log likelihood with heteroscedastic variances
+
+    y_pred:  output from model. defines mean of normal 
+    y:       observed data
+    sigmas:  defines the observation specific variances
+    '''
+    # ll = (-1/2) * torch.mean(((y-y_pred).pow(2).flatten() / sigmas))
+    ll = Normal(y_pred, torch.sqrt(sigmas)).log_prob(y).mean()
+
+    return(-ll)
 
 class CurvatureInterface:
     """Interface to access curvature for a model and corresponding likelihood.
@@ -22,7 +36,7 @@ class CurvatureInterface:
 
     Attributes
     ----------
-    lossfunc : torch.nn.MSELoss or torch.nn.CrossEntropyLoss
+    lossfunc : torch.nn.MSELoss or torch.nn.CrossEntropyLoss or specified
     factor : float
         conversion factor between torch losses and base likelihoods
         For example, \\(\\frac{1}{2}\\) to get to \\(\\mathcal{N}(f, 1)\\) from MSELoss.
@@ -41,6 +55,7 @@ class CurvatureInterface:
         elif likelihood == 'het_regression':
             # needs to be updated for hetero reweight
             self.lossfunc = MSELoss(reduction='sum')
+            self.lossfunc = het_nll
             self.factor = 0.5            
         else:
             self.lossfunc = CrossEntropyLoss(reduction='sum')
@@ -214,14 +229,22 @@ class GGNInterface(CurvatureInterface):
         H_ggn : torch.Tensor
             full GGN approximation `(parameters, parameters)`
         """
-        loss = self.factor * self.lossfunc(f, y)
+
+        # use different loss parameterization 
+        if self.likelihood == 'het_regression':
+            loss = self.factor * self.lossfunc(f, y, sigs)
+        else:
+            loss = self.factor * self.lossfunc(f, y)
+
         if self.likelihood == 'regression':
             H_ggn = torch.einsum('mkp,mkq->pq', Js, Js)
+
         elif self.likelihood == 'het_regression':
             # rescale
             taus = 1 / sigs
             Js2 = torch.einsum('ijk,ijp->ijk', Js, taus[:, :, None])
             H_ggn = torch.einsum('mkp,mkq->pq', Js2, Js)
+
         elif self.likelihood == 'het_classification':
             # second derivative of log lik is diag(p) - pp^T
             ps = torch.softmax(f, dim=-1)
